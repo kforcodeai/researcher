@@ -1,20 +1,12 @@
 import arxiv
-import argparse
-import PyPDF2
 import os
 import json
 import nltk
 from rake_nltk import Rake
-
 import fitz
 from PIL import Image, ImageDraw
 import re
-import shutil
-import datetime
 from tqdm import tqdm
-
-nltk.download("stopwords")
-nltk.download("punkt")
 
 
 def refine_query(query):
@@ -24,11 +16,36 @@ def refine_query(query):
     return " ".join(keywords)
 
 
-def extract_features_from_pdf(pdfilepath):
-    os.makedirs(f"{pdfilepath[:-4]}/imgs/", exist_ok=True)
-    doc = fitz.open(pdfilepath)
+def get_links(page):
+    cites = []
+    external_links = []
+    link = page.first_link
+    while link: # iterate over the links on page
+        # do something with the link, then:
+        if 'cite' in str(link.uri):
+            cites.append(link.uri)
+        elif link.is_external:
+            external_links.append(link.uri)
+        link = link.next
+    return list(set(cites)), list(set(external_links))
+    
+def get_figures(page):
+    # issue with plotting the size of plot doesnot match size of figure
     zoom = 2
     mat = fitz.Matrix(zoom, zoom)
+    pix = page.get_pixmap(matrix=mat)
+    fig = page.get_drawings()
+    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    draw = ImageDraw.Draw(img)
+    for fg in fig:
+        rect = fg['rect']
+        rect = [rect[0]*img.width, rect[1]*img.height, rect[2]*img.width, rect[3]*img.height]
+        rect = [x/1000 for x in rect]
+        draw.rectangle(rect, outline='red', width=2)
+    return img
+
+def extract_features_from_pdf(pdfilepath):
+    doc = fitz.open(pdfilepath)
     count = 0
     # Count variable is to get the number of pages in the pdf
     for p in doc:
@@ -36,37 +53,27 @@ def extract_features_from_pdf(pdfilepath):
     
     matches = []
     cites = []
-    external_links = []
+    links = []
     for i in tqdm(range(count)):
-        val = f"image_{i+1}.png"
         page = doc.load_page(i)
-        pix = page.get_pixmap(matrix=mat)
+        
         text = page.get_text()
-        link = page.first_link
-        while link: # iterate over the links on page
-            # do something with the link, then:
-            if 'cite' in str(link.uri):
-                cites.append(link.uri)
-            elif link.is_external:
-                external_links.append(link.uri)
-            link = link.next
-
         # does this page has refrence
         match = re.findall(pattern='arXiv:[0-9.]+', string=text)
-        fig = page.get_drawings()
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        draw = ImageDraw.Draw(img)
-        for fg in fig:
-            rect = fg['rect']
-            # print(rect)
-            rect = [rect[0]*img.width, rect[1]*img.height, rect[2]*img.width, rect[3]*img.height]
-            rect = [x/1000 for x in rect]
-            # print(rect)
-            draw.rectangle(rect, outline='red', width=2)    
-        img.save(f"{pdfilepath[:-4]}/imgs/{val}")
-        matches+=match
+        # 6 to get rid of arXiv and id is of 9 digits
+        match = [x[6:][:9] for x in match]
+
+        # get cited page and extranal links like github or blog posts
+        cites, links = get_links(page)
+
+        # find digrams on the image, plot, save
+        # img = get_figures(page)
+        # img.save(f"{pdfilepath[:-4]}/imgs/{val}")
+        matches+= match
+        cites += cites
+        links += links
     doc.close()
-    return matches, list(set(cites)), list(set(external_links))
+    return matches, cites, links
 
 def extract_features_from_arxiv(p):
     title = p.title
@@ -78,10 +85,9 @@ def extract_features_from_arxiv(p):
         conference = None
     return (title, conference, summary)
 
-def scrape_papers(query, numresults=5):
+def scrape_papers(query, numresults , output_dir):
     refined_query = refine_query(query)
-    nw = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')[:-3]
-    os.makedirs(f"../artifacts/{nw}", exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     results = []
 
     search = arxiv.Search(
@@ -92,10 +98,11 @@ def scrape_papers(query, numresults=5):
     papers = list(search.results())
 
     results = []
+    relations = []
 
     for i, p in tqdm(enumerate(papers)):
-        text = ""
-        file_path = f"../artifacts/{nw}/{str(p).split('/')[-1]}.pdf"
+        id = str(p).split('/')[-1][:9]
+        file_path = f"{output_dir}/{id}.pdf"
         p.download_pdf(filename=file_path)
         title, conference, summary = extract_features_from_arxiv(p)
         related_paper_ids, cites, links = extract_features_from_pdf(file_path)
@@ -103,19 +110,12 @@ def scrape_papers(query, numresults=5):
         res['title'] = title
         res['conference'] = conference
         res['summary'] = summary
-        # res['keywords'] = list(set(refine_query(summary).split()))
         res['related_papers'] = related_paper_ids
         res['cites'] = cites
         res['links'] = links
         results.append(res)
+        relations.append({f'{id}':related_paper_ids})
     
-    with open(f'../artifacts/{nw}/result.json', 'w') as f:
+    with open(f'{output_dir}/result.json', 'w') as f:
         json.dump(fp=f, obj=results)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--topic", help="topic you are intrested in", default="large language model based agents")
-    parser.add_argument("--num_results", help="number of papers to find on the topic", default=5)
-    args = parser.parse_args()
-    scrape_papers(args.topic, int(args.num_results))
+    return relations

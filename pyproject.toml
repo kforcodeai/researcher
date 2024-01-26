@@ -13,6 +13,7 @@ rake-nltk = "^1.0.6"
 transformers = "^4.37.1"
 pymupdf = "^1.23.18"
 pandas = "^2.2.0"
+networkx = "^3.2.1"
 
 
 [tool.poetry.group.test.dependencies]
