@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "researcher"
+version = "0.1.0"
+description = ""
+authors = ["kforcodeai <kaushalcse07@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+arxiv = "^2.1.0"
+nltk = "^3.8.1"
+rake-nltk = "^1.0.6"
+transformers = "^4.37.1"
+pymupdf = "^1.23.18"
+pandas = "^2.2.0"
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4.4"
+
+
+[tool.poetry.group.dev.dependencies]
+jupyter = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
