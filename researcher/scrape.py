@@ -81,7 +81,7 @@ def extract_features_from_arxiv(p):
 def scrape_papers(query, numresults=5):
     refined_query = refine_query(query)
     nw = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')[:-3]
-    os.makedirs(f"./artifacts/{nw}", exist_ok=True)
+    os.makedirs(f"../artifacts/{nw}", exist_ok=True)
     results = []
 
     search = arxiv.Search(
@@ -95,7 +95,7 @@ def scrape_papers(query, numresults=5):
 
     for i, p in tqdm(enumerate(papers)):
         text = ""
-        file_path = f"./artifacts/{nw}/{str(p).split('/')[-1]}.pdf"
+        file_path = f"../artifacts/{nw}/{str(p).split('/')[-1]}.pdf"
         p.download_pdf(filename=file_path)
         title, conference, summary = extract_features_from_arxiv(p)
         related_paper_ids, cites, links = extract_features_from_pdf(file_path)
@@ -109,13 +109,13 @@ def scrape_papers(query, numresults=5):
         res['links'] = links
         results.append(res)
     
-    with open(f'./artifacts/{nw}/result.json', 'w') as f:
+    with open(f'../artifacts/{nw}/result.json', 'w') as f:
         json.dump(fp=f, obj=results)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("topic", help="topic you are intrested in", default="large language model based agents")
-
+    parser.add_argument("--topic", help="topic you are intrested in", default="large language model based agents")
+    parser.add_argument("--num_results", help="number of papers to find on the topic", default=5)
     args = parser.parse_args()
-    scrape_papers(args.topic)
+    scrape_papers(args.topic, int(args.num_results))
