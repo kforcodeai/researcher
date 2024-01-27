@@ -23,9 +23,9 @@ def main():
     # Button to trigger the search and plot
     if st.button("Search and Plot"):
         
-        # G = create_connection_plot(keyword, num_results)
+        G = create_connection_plot(keyword, num_results)
         # pickle.dump(G, open('graph.pkl', 'wb'))
-        G = pickle.load(open('graph.pkl', 'rb'))
+        # G = pickle.load(open('graph.pkl', 'rb'))
 
         pos = nx.spring_layout(G, weight='weight')  # positions for all nodes based on edge weight
         node_size_weights = [sum([d['weight'] for (_, v, d) in G.edges(data=True) if v == n]) for n in G.nodes()]
