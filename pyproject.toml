@@ -6,7 +6,7 @@ authors = ["kforcodeai <kaushalcse07@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9,<3.9.7 || >3.9.7,<4.0"
 arxiv = "^2.1.0"
 nltk = "^3.8.1"
 rake-nltk = "^1.0.6"
@@ -14,6 +14,8 @@ transformers = "^4.37.1"
 pymupdf = "^1.23.18"
 pandas = "^2.2.0"
 networkx = "^3.2.1"
+streamlit = "^1.30.0"
+plotly = "^5.18.0"
 
 
 [tool.poetry.group.test.dependencies]

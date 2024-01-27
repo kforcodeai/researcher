@@ -7,6 +7,8 @@ import fitz
 from PIL import Image, ImageDraw
 import re
 from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 
 
 def refine_query(query):
@@ -85,37 +87,34 @@ def extract_features_from_arxiv(p):
         conference = None
     return (title, conference, summary)
 
-def scrape_papers(query, numresults , output_dir):
+def scrape_paper(p, output_dir):
+    link = str(p)
+    id = str(p).split('/')[-1][:9]
+    file_path = f"{output_dir}/{id}.pdf"
+    p.download_pdf(filename=file_path)
+    title, conference, summary = extract_features_from_arxiv(p)
+    related_paper_ids, cites, links = extract_features_from_pdf(file_path)
+    res = {}
+    res['arxivlink'] = link
+    res['title'] = title
+    res['conference'] = conference
+    res['summary'] = summary
+    res['related_papers'] = related_paper_ids
+    res['cites'] = cites
+    res['links'] = links
+    return {f'{id}':{"related_papers":related_paper_ids, "metadata":res}}
+
+def scrape_papers(query, numresults, output_dir):
     refined_query = refine_query(query)
     os.makedirs(output_dir, exist_ok=True)
-    results = []
-
     search = arxiv.Search(
         query=refined_query,
         max_results=numresults,
         sort_by=arxiv.SortCriterion.Relevance,
     )
     papers = list(search.results())
-
-    results = []
-    relations = []
-
-    for i, p in tqdm(enumerate(papers)):
-        id = str(p).split('/')[-1][:9]
-        file_path = f"{output_dir}/{id}.pdf"
-        p.download_pdf(filename=file_path)
-        title, conference, summary = extract_features_from_arxiv(p)
-        related_paper_ids, cites, links = extract_features_from_pdf(file_path)
-        res = {}
-        res['title'] = title
-        res['conference'] = conference
-        res['summary'] = summary
-        res['related_papers'] = related_paper_ids
-        res['cites'] = cites
-        res['links'] = links
-        results.append(res)
-        relations.append({f'{id}':related_paper_ids})
-    
-    with open(f'{output_dir}/result.json', 'w') as f:
-        json.dump(fp=f, obj=results)
-    return relations
+    total = len(papers)
+    with ProcessPoolExecutor(max_workers=os.cpu_count()-2) as executor:
+        partial_scrape_paper = partial(scrape_paper, output_dir=output_dir)
+        results = list(tqdm(executor.map(partial_scrape_paper, papers), total=len(papers)))
+    return results
